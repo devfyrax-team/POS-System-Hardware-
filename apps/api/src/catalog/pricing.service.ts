@@ -84,6 +84,7 @@ export class PricingService {
   }
 
   async history(tx: Tx, shopId: string, productId: string, limit = 50) {
+    if (!(await tx.query(`SELECT 1 FROM product WHERE shop_id=$1 AND id=$2`, [shopId, productId])).rowCount) throw E.notFound('Product');
     return (
       await tx.query(
         `SELECT id, unit_id, tier, old_price, new_price, changed_by, created_at FROM price_history WHERE shop_id=$1 AND product_id=$2 ORDER BY id DESC LIMIT $3`,

@@ -161,6 +161,7 @@ export class DeliveryNoteService {
   }
 
   async status(tx: Tx, shopId: string, saleId: string) {
+    if (!(await tx.query(`SELECT 1 FROM sale WHERE shop_id=$1 AND id=$2`, [shopId, saleId])).rowCount) throw E.notFound('Sale');
     return (
       await tx.query(
         `SELECT l.id AS sale_line_id, p.name, l.unit, l.qty_unit AS sold,

@@ -1,19 +1,53 @@
+# Local development: only Postgres is needed (docker compose up -d postgres).
+# Production-like stack on one Linux VPS: docker compose --profile full up -d
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: pos
     ports: ["5433:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build: { context: ., dockerfile: infra/Dockerfile.api }
-    environment:
-      DATABASE_URL: postgres://pos_app:pos_app@postgres:5432/pos
-      ADMIN_DATABASE_URL: postgres://postgres:postgres@postgres:5432/pos
-      JWT_SECRET: change-me
-    depends_on: [postgres]
-    ports: ["3000:3000"]
     profiles: ["full"]
+    environment: &app-env
+      DATABASE_URL: postgres://pos_app:${APP_DB_PASSWORD:-pos_app}@postgres:5432/pos
+      ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/pos
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      COOKIE_SECURE: "true"
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://app.example.lk}
+      PORT: "3000"
+      TS_NODE_TRANSPILE_ONLY: "true"
+    depends_on: { postgres: { condition: service_healthy } }
+    command: ["sh", "-c", "npm run migrate -w apps/api && npm run start -w apps/api"]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build: { context: ., dockerfile: infra/Dockerfile.api }
+    profiles: ["full"]
+    environment: *app-env
+    depends_on: { api: { condition: service_healthy } }
+    command: ["npm", "run", "worker", "-w", "apps/api"]
+
+  nginx:
+    image: nginx:1.27
+    profiles: ["full"]
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/certs:/etc/nginx/certs:ro
+    depends_on: [api]
+
 volumes:
   pgdata:

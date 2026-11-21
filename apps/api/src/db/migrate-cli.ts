@@ -6,7 +6,7 @@ import { Pool } from 'pg';
 
 (async () => {
   const url = config().adminDatabaseUrl;
-  const applied = await migrate(url);
+  const applied = await migrate(url, 'pos_app', process.env.APP_DB_PASSWORD ?? 'pos_app');
   console.log(applied.length ? `Applied: ${applied.join(', ')}` : 'No new migrations');
   const pool = new Pool({ connectionString: url });
   await seedPlatformData(pool);

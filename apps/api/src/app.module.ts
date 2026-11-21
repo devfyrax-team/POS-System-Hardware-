@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { MetricsService, RequestLogInterceptor } from './common/bootstrap';
 import { AuthGuard, FeatureGuard, PermissionGuard, TenantContextGuard } from './auth/guards';
 import { AllExceptionsFilter } from './common/exception.filter';
 import { CoreModule } from './core.module';
@@ -20,6 +21,7 @@ import { BillingModule } from './platform/billing.module';
 @Module({
   imports: [CoreModule, IdentityModule, CatalogModule, InventoryModule, ImportModule, SalesModule, CustomersModule, PurchasingModule, ReportingModule, ExpiryModule, PaintModule, TransfersModule, BillingModule],
   controllers: [HealthController],
+  exports: [MetricsService],
   providers: [
     // Guard chain, in order: Auth -> Tenant/Subscription -> Feature -> Permission.
     { provide: APP_GUARD, useClass: AuthGuard },
@@ -27,6 +29,8 @@ import { BillingModule } from './platform/billing.module';
     { provide: APP_GUARD, useClass: FeatureGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    MetricsService,
+    { provide: APP_INTERCEPTOR, useClass: RequestLogInterceptor },
   ],
 })
 export class AppModule {}

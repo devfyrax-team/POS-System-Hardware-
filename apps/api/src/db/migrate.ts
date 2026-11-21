@@ -24,7 +24,7 @@ export const INSERT_ONLY_TABLES = [
  * Applies SQL migrations with the superuser connection, then (re)applies grants
  * for the restricted application role. Idempotent.
  */
-export async function migrate(adminUrl: string, appRole = 'pos_app', appPassword = 'pos_app'): Promise<string[]> {
+export async function migrate(adminUrl: string, appRole = 'pos_app', appPassword = 'pos_app', opts: { limit?: number } = {}): Promise<string[]> {
   const pool = new Pool({ connectionString: adminUrl, max: 1 });
   const applied: string[] = [];
   try {
@@ -36,8 +36,10 @@ export async function migrate(adminUrl: string, appRole = 'pos_app', appPassword
          END IF;
        END $$;`,
     );
+    // keep the application role's password in step with the configured secret
+    await pool.query(`ALTER ROLE ${appRole} PASSWORD '${appPassword.replace(/'/g, "''")}'`);
     const dir = path.join(__dirname, 'migrations');
-    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().slice(0, opts.limit ?? undefined);
     const done = new Set((await pool.query('SELECT name FROM schema_migrations')).rows.map((r) => r.name));
     for (const f of files) {
       if (done.has(f)) continue;

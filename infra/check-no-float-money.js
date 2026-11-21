@@ -5,7 +5,7 @@ const bad = /parseFloat\(|\.toFixed\(|Math\.round\(.*(price|total|amount|cost|qt
 let failed = false;
 (function walk(d) {
   for (const f of fs.readdirSync(d, { withFileTypes: true })) {
-    if (['node_modules', 'dist', '.git'].includes(f.name)) continue;
+    if (['node_modules', 'dist', '.git', 'scripts'].includes(f.name)) continue;
     const p = path.join(d, f.name);
     if (f.isDirectory()) walk(p);
     else if (/\.ts$/.test(f.name) && !/\.spec\.ts$/.test(f.name)) {

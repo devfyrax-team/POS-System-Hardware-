@@ -429,3 +429,27 @@ Indexes up front: `sale(shop, branch, created_at)`, `sale_line(product, created_
 | Invoice-number gap rules | **Deferred (D9).** Per-terminal sequence stays as designed |
 | SMS/WhatsApp provider and per-message pricing | **Deferred (D9).** In-app alerts first; channel interface (`NotificationChannel`) lets providers plug in later |
 | Printing approach (browser vs wrapper) | Decided by phase-2 printer spike |
+
+---
+
+## 13. Implementation notes (what was built, and where it differs from this design)
+
+All eight roadmap phases are implemented in `apps/api` with tests; see the README for the status table. Differences and additions:
+
+| Topic | Design said | Built |
+|---|---|---|
+| Data access | Prisma + raw SQL | `pg` with hand-written SQL and a small migration runner. RLS needs a per-transaction tenant setting and the hot paths are raw SQL anyway, so Prisma added friction without benefit. `Db.tenant()` is the `TenantTx` of section 3.2. |
+| Row locks on history | not specified | Insert-only tables cannot be row-locked (that needs UPDATE rights), so concurrent void/return/delivery on one sale serialise on a transaction-level advisory lock. |
+| Module coupling | services call services | Later modules plug into checkout through `CheckoutHooks` (customer lock and credit charge, cheque capture, batch allocation) so the sales module never reads their tables. |
+| Permissions | listed in 3.6 | Computed once per request (roles at the session branch, minus features the shop lacks) in the tenant guard; `scopeBranch()` keeps branch managers inside their own branch. |
+| Costing | FIFO or average over layers | As designed. Transfers carry the average cost of what left the source (one layer at the destination per line), so inherited cost can differ by a fraction of a cent. |
+| Tint product | variant of the base item | A tinted tin is its own non-returnable product per base paint and colour; movements use `tint_out` / `tint_in`. |
+| Damaged stock | separate status | `damaged_qty` on the balance; a manager re-lists it as a discounted "[DAMAGED]" product. |
+| Notifications | in-app, SMS, WhatsApp, email | In-app only (provider and pricing undecided, see D9). |
+| Price-change gain report | listed | Not built. Profit, profit by item/category/cashier/branch, replacement-cost margin, below-cost and missing-cost flags are built. |
+| Support access to shops | consented, audited | Not built. |
+| Offline | removed (D1) | The tills need the network; retries are safe because every sale carries an idempotency key. |
+| Frontend | React PWA | Not built yet. |
+
+Operational additions beyond the design: database integrity checker (`npm run integrity`), backup and restore-rehearsal scripts,
+load test (`npm run load`), `/health/ready`, Prometheus-style metrics, OpenAPI at `/docs`. See `docs/RUNBOOK.md` and `docs/SECURITY.md`.

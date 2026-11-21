@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { randomUUID } from 'crypto';
 import { AppModule } from '../src/app.module';
-import { AllExceptionsFilter } from '../src/common/exception.filter';
+import { configureApp } from '../src/common/bootstrap';
 import { AuthService } from '../src/auth/auth.service';
 import { Db } from '../src/db/db';
 import { ShopProvisioningService } from '../src/platform/provisioning.service';
@@ -16,10 +16,11 @@ export interface TestCtx {
   close: () => Promise<void>;
 }
 
-export async function createApp(): Promise<TestCtx> {
+export async function createApp(opts: { rateLimitPerMin?: number; corsOrigins?: string[] } = {}): Promise<TestCtx> {
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = mod.createNestApplication();
-  app.setGlobalPrefix('v1', { exclude: ['health'] });
+  const app = mod.createNestApplication({ bodyParser: false });
+  app.setGlobalPrefix('v1', { exclude: ['health', 'health/ready', 'docs'] });
+  configureApp(app, { rateLimitPerMin: opts.rateLimitPerMin ?? 1_000_000, corsOrigins: opts.corsOrigins, swagger: false });
   await app.init();
   return {
     app,
