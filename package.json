@@ -1,0 +1,13 @@
+{
+  "name": "pos-system",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build": "npm run build -w apps/api",
+    "test": "npm test -w packages/money && npm test -w apps/api",
+    "lint:money": "node infra/check-no-float-money.js",
+    "db:up": "docker compose up -d postgres",
+    "db:migrate": "npm run migrate -w apps/api"
+  }
+}
