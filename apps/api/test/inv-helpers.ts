@@ -1,5 +1,6 @@
 import { D } from '@pos/money';
 import { StockService } from '../src/inventory/stock.service';
+import { OutboxService } from '../src/jobs/outbox.service';
 import { auth, createUser, login, platformToken, provisionShop, Shop, TestCtx } from './helpers';
 
 export interface Ctx {
@@ -78,4 +79,10 @@ export const newKey = () => `key-${Date.now()}-${++keySeq}-${Math.random().toStr
 
 export function sell(t: TestCtx, token: string, body: Record<string, unknown>, key = newKey()) {
   return t.http().post('/v1/sales').set(auth(token)).set('Idempotency-Key', key).send(body);
+}
+
+/** Dispatches ALL pending outbox events (other suites may have left a backlog behind). */
+export async function drainOutbox(t: TestCtx): Promise<void> {
+  const outbox = t.app.get(OutboxService);
+  for (let i = 0; i < 200; i++) if ((await outbox.dispatch(500)) === 0) return;
 }

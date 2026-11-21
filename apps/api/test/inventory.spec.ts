@@ -1,8 +1,7 @@
 import { D } from '@pos/money';
 import { LowStockService } from '../src/inventory/lowstock.service';
-import { OutboxService } from '../src/jobs/outbox.service';
 import { auth, createApp, TestCtx } from './helpers';
-import { addProduct, balance, Ctx, ledgerDiffs, openingStock, setupShop, stockTx } from './inv-helpers';
+import { addProduct, balance, Ctx, drainOutbox, ledgerDiffs, openingStock, setupShop, stockTx } from './inv-helpers';
 
 describe('inventory: ledger, costing, concurrency', () => {
   let t: TestCtx;
@@ -200,7 +199,7 @@ describe('inventory: ledger, costing, concurrency', () => {
   });
 
   describe('low-stock alerts', () => {
-    const dispatch = () => t.app.get(OutboxService).dispatch();
+    const dispatch = () => drainOutbox(t);
     const inbox = async (token: string) => (await t.http().get('/v1/notifications').set(auth(token))).body as any[];
 
     it('alerts once per crossing to storekeeper/manager/owner (not the cashier); re-arms after restock', async () => {

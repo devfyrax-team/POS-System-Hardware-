@@ -1,8 +1,7 @@
 import { D } from '@pos/money';
 import { ExpiryService } from '../src/inventory/expiry.module';
-import { OutboxService } from '../src/jobs/outbox.service';
 import { auth, createApp, TestCtx } from './helpers';
-import { addProduct, balance, Ctx, ledgerDiffs, sell, setupShop, till } from './inv-helpers';
+import { addProduct, balance, Ctx, drainOutbox, ledgerDiffs, sell, setupShop, till } from './inv-helpers';
 
 const days = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 
@@ -160,7 +159,7 @@ describe('batches and expiry (paint)', () => {
       const inbox = async () => (await t.http().get('/v1/notifications').set(auth(c.storekeeper))).body.filter((n: any) => n.payload?.batchNo === 'AL-1');
       expect(await scan()).toBe(1); // inside 180
       expect(await scan()).toBe(0); // nothing new
-      await t.app.get(OutboxService).dispatch();
+      await drainOutbox(t);
       expect((await inbox()).map((n: any) => n.type)).toEqual(['stock.expiring']);
       await t.db.admin((tx) => tx.query(`UPDATE stock_batch SET expiry_date = current_date + 80 WHERE batch_no='AL-1' AND product_id=$1`, [p.id]));
       expect(await scan()).toBe(1); // tightened to 90
@@ -168,7 +167,7 @@ describe('batches and expiry (paint)', () => {
       expect(await scan()).toBe(1); // 30
       await t.db.admin((tx) => tx.query(`UPDATE stock_batch SET expiry_date = current_date - 1 WHERE batch_no='AL-1' AND product_id=$1`, [p.id]));
       expect(await scan()).toBe(1); // expired
-      await t.app.get(OutboxService).dispatch();
+      await drainOutbox(t);
       const notes = await inbox();
       expect(notes.map((n: any) => n.payload.band)).toEqual([0, 30, 90, 180]);
       expect(notes[0]).toMatchObject({ type: 'stock.expired' });
