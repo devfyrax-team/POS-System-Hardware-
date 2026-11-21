@@ -23,6 +23,7 @@ async function main() {
         await jobs.enqueue(tx, 'feature.expire_overrides', {}, { dedupeKey: 'feature.expire_overrides' });
         const day = new Date().toISOString().slice(0, 10);
         await jobs.enqueue(tx, 'lowstock.check', {}, { dedupeKey: `lowstock.check:${day}` });
+        await jobs.enqueue(tx, 'expiry.scan', {}, { dedupeKey: `expiry.scan:${day}` });
         await jobs.enqueue(tx, 'stock.reconcile', {}, { dedupeKey: `stock.reconcile:${day}` });
       });
     }

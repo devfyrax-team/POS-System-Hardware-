@@ -10,6 +10,7 @@ export const settingsSchema = z
     costing_method: z.enum(['fifo', 'average']),
     costing_effective_from: z.string().nullable(),
     expiry_windows_days: z.array(z.number().int().positive()).max(6),
+    expiry_windows_by_category: z.record(z.string(), z.array(z.number().int().positive()).max(6)),
     expired_stock_policy: z.enum(['block', 'warn', 'allow']),
     below_cost_warning: z.boolean(),
     cashier_price_override: z.boolean(),

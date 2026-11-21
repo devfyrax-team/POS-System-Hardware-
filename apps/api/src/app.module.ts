@@ -12,9 +12,10 @@ import { SalesModule } from './sales/sales.module';
 import { CustomersModule } from './customers/customers.module';
 import { PurchasingModule } from './purchasing/purchasing.module';
 import { ReportingModule } from './reporting/reporting.module';
+import { ExpiryModule } from './inventory/expiry.module';
 
 @Module({
-  imports: [CoreModule, IdentityModule, CatalogModule, InventoryModule, ImportModule, SalesModule, CustomersModule, PurchasingModule, ReportingModule],
+  imports: [CoreModule, IdentityModule, CatalogModule, InventoryModule, ImportModule, SalesModule, CustomersModule, PurchasingModule, ReportingModule, ExpiryModule],
   controllers: [HealthController],
   providers: [
     // Guard chain, in order: Auth -> Tenant/Subscription -> Feature -> Permission.

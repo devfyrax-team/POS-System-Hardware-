@@ -24,5 +24,9 @@ export class CheckoutHooks {
   /** Records the cheque details for a cheque payment. */
   cheque?: (tx: Tx, s: TenantSession, c: { saleId: string; amount: string; reference?: string; customerId?: string | null; details?: any }) => Promise<void>;
   /** Picks batches for batch-tracked items (earliest expiry first unless the cashier chose). */
-  allocateBatch?: (tx: Tx, s: TenantSession, c: { productId: string; qtyBase: string; preferredBatchId?: string }) => Promise<{ batchId: string | null }>;
+  allocateBatch?: (
+    tx: Tx,
+    s: TenantSession,
+    c: { productId: string; qtyBase: string; preferredBatchId?: string },
+  ) => Promise<{ batchId: string | null; allocations?: { batchId: string | null; qtyBase: string; batchNo?: string | null; expiry?: string | null; expired?: boolean }[] }>;
 }

@@ -174,18 +174,37 @@ export class CheckoutService {
 
     // 4. stock: lines in product-id order (no deadlocks); the update is late to keep locks short
     const order = [...prepared].sort((a, b) => (a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : a.idx - b.idx));
-    const results = new Map<number, { cogs: Decimal; estimated: boolean; movementId: number; batchId: string | null }>();
+    const results = new Map<number, { cogs: Decimal; estimated: boolean; movementId: number; batchId: string | null; batchNo?: string | null; expired?: boolean }>();
     const saleId = randomUUID();
     const shorts: { line: number; productId: string; name: string; requested: string; available: string }[] = [];
     for (const l of order) {
-      let batchId: string | null = null;
-      if (this.hooks.allocateBatch) batchId = (await this.hooks.allocateBatch(tx, s, { productId: l.productId, qtyBase: l.qtyBase, preferredBatchId: l.preferredBatchId })).batchId;
+      // batch-tracked items: earliest expiry first unless the cashier chose a batch (may split across batches)
+      let allocs: { batchId: string | null; qtyBase: string; batchNo?: string | null; expired?: boolean }[] = [{ batchId: null, qtyBase: l.qtyBase }];
+      if (this.hooks.allocateBatch) {
+        try {
+          const a = await this.hooks.allocateBatch(tx, s, { productId: l.productId, qtyBase: l.qtyBase, preferredBatchId: l.preferredBatchId });
+          allocs = a.allocations ?? [{ batchId: a.batchId, qtyBase: l.qtyBase }];
+        } catch (e: any) {
+          if (e?.code !== 'STOCK_SHORT') throw e;
+          shorts.push({ line: l.idx + 1, productId: l.productId, name: l.name, requested: l.qtyBase, available: e.details?.available ?? '0' });
+          continue;
+        }
+      }
       try {
-        const r = await this.stock.apply(tx, {
-          shopId: s.shopId, branchId, productId: l.productId, type: 'sale', qtyBase: D(l.qtyBase).neg().toString(), batchId,
-          unit: l.unit, qtyUnit: l.qtyUnit, factor: l.factor, refType: 'sale', refId: saleId, userId: s.userId,
-        });
-        results.set(l.idx, { cogs: D(r.cogs ?? '0'), estimated: r.estimated, movementId: r.movementId, batchId });
+        let cogs = D(0);
+        let estimated = false;
+        let movementId = 0;
+        for (const a of allocs) {
+          const whole = allocs.length === 1;
+          const r = await this.stock.apply(tx, {
+            shopId: s.shopId, branchId, productId: l.productId, type: 'sale', qtyBase: D(a.qtyBase).neg().toString(), batchId: a.batchId,
+            unit: whole ? l.unit : undefined, qtyUnit: whole ? l.qtyUnit : undefined, factor: whole ? l.factor : undefined, refType: 'sale', refId: saleId, userId: s.userId,
+          });
+          cogs = cogs.plus(r.cogs ?? '0');
+          estimated = estimated || r.estimated;
+          movementId = r.movementId;
+        }
+        results.set(l.idx, { cogs, estimated, movementId, batchId: allocs[0].batchId, batchNo: allocs[0].batchNo, expired: allocs.some((a) => a.expired) });
       } catch (e: any) {
         if (e?.code !== 'STOCK_SHORT') throw e;
         shorts.push({ line: l.idx + 1, productId: l.productId, name: l.name, requested: l.qtyBase, available: e.details?.available ?? '0' });
@@ -227,6 +246,7 @@ export class CheckoutService {
       lineOut.push({
         lineId: row.id, lineNo: l.idx + 1, productId: l.productId, name: l.name, qty: l.qtyUnit, unit: l.unit, price: l.priceCharged.toString(),
         discount: l.discount.toString(), lineTotal: l.lineTotal.toString(), belowCost: settings.below_cost_warning === false ? undefined : belowCost || undefined,
+        batchNo: r.batchNo ?? undefined, expired: r.expired || undefined,
       });
     }
 
