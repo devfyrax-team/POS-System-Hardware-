@@ -7,7 +7,12 @@ export const INSERT_ONLY_TABLES = [
   'audit_log',
   'stock_movement',
   'credit_entry',
+  'sale',
   'sale_line',
+  'payment',
+  'sale_void',
+  'sales_return',
+  'sales_return_line',
   'purchase_price_history',
   'price_history',
 ];

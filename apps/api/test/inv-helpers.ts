@@ -9,6 +9,7 @@ export interface Ctx {
   storekeeper: string;
   cashier: string;
   users: { manager: string; storekeeper: string; cashier: string };
+  emails: { manager: string; storekeeper: string; cashier: string };
 }
 
 /** Shop with an owner, manager, storekeeper and cashier all in the Main branch. */
@@ -24,6 +25,7 @@ export async function setupShop(t: TestCtx, opts: { plan?: string; shopType?: 'h
   return {
     shop, owner, manager: await login(t, m.email), storekeeper: await login(t, sk.email), cashier: await login(t, c.email),
     users: { manager: m.id, storekeeper: sk.id, cashier: c.id },
+    emails: { manager: m.email, storekeeper: sk.email, cashier: c.email },
   };
 }
 
@@ -60,4 +62,20 @@ export async function ledgerDiffs(t: TestCtx, shopId: string) {
 export async function balance(t: TestCtx, branchId: string, productId: string): Promise<string> {
   const r = await t.db.admin((tx) => tx.query(`SELECT quantity FROM stock_balance WHERE branch_id=$1 AND product_id=$2`, [branchId, productId]));
   return r.rowCount ? D(r.rows[0].quantity).toString() : '0';
+}
+
+/** Registers a terminal and returns a till session (a user logged in on it). */
+export async function till(t: TestCtx, c: Ctx, prefix: string, who: 'cashier' | 'manager' | 'owner' = 'cashier') {
+  const term = await t.http().post('/v1/terminals').set(auth(c.owner)).send({ branchId: c.shop.defaultBranchId, name: prefix, prefix });
+  if (term.status !== 201) throw new Error(`terminal ${term.status}: ${JSON.stringify(term.body)}`);
+  const email = who === 'owner' ? c.shop.ownerEmail : c.emails[who];
+  const token = await login(t, email, undefined, term.body.id);
+  return { terminalId: term.body.id as string, token, prefix };
+}
+
+let keySeq = 0;
+export const newKey = () => `key-${Date.now()}-${++keySeq}-${Math.random().toString(36).slice(2, 8)}`;
+
+export function sell(t: TestCtx, token: string, body: Record<string, unknown>, key = newKey()) {
+  return t.http().post('/v1/sales').set(auth(token)).set('Idempotency-Key', key).send(body);
 }
