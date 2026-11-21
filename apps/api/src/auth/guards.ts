@@ -94,9 +94,11 @@ export class PermissionGuard implements CanActivate {
   constructor(private readonly reflector: Reflector, private readonly db: Db, private readonly access: AccessService) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    const need = this.reflector.getAllAndOverride<Permission[]>(META.PERMISSIONS, [ctx.getHandler(), ctx.getClass()]);
+    const targets = [ctx.getHandler(), ctx.getClass()];
+    const need = this.reflector.getAllAndOverride<Permission[]>(META.PERMISSIONS, targets);
+    const any = this.reflector.getAllAndOverride<Permission[]>(META.ANY_PERMISSIONS, targets);
     const s: TenantSession | undefined = ctx.switchToHttp().getRequest().session;
-    if (!need?.length || !s || s.kind !== 'tenant') return true;
+    if ((!need?.length && !any?.length) || !s || s.kind !== 'tenant') return true;
     const acc = await this.db.tenant({ shopId: s.shopId, userId: s.userId }, async (tx) => {
       const u = (await tx.query(`SELECT status FROM users WHERE shop_id=$1 AND id=$2`, [s.shopId, s.userId])).rows[0];
       if (!u || u.status !== 'active') throw E.unauthenticated('Account is inactive');
@@ -105,7 +107,8 @@ export class PermissionGuard implements CanActivate {
     s.permissions = acc.permissions;
     s.allBranches = acc.allBranches;
     s.branchIds = acc.branchIds;
-    for (const p of need) if (!acc.permissions.has(p)) throw E.forbidden(`Missing permission: ${p}`);
+    for (const p of need ?? []) if (!acc.permissions.has(p)) throw E.forbidden(`Missing permission: ${p}`);
+    if (any?.length && !any.some((p) => acc.permissions.has(p))) throw E.forbidden(`Requires one of: ${any.join(', ')}`);
     return true;
   }
 }

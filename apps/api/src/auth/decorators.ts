@@ -7,6 +7,7 @@ export const META = {
   ALLOW_RESTRICTED: 'pos:allowRestricted',
   FEATURES: 'pos:features',
   PERMISSIONS: 'pos:permissions',
+  ANY_PERMISSIONS: 'pos:anyPermissions',
 };
 
 /** No login needed. */
@@ -19,3 +20,6 @@ export const AllowWhenRestricted = () => SetMetadata(META.ALLOW_RESTRICTED, true
 export const RequireFeature = (...f: FeatureKey[]) => SetMetadata(META.FEATURES, f);
 /** All listed permissions are required. */
 export const RequirePermission = (...p: Permission[]) => SetMetadata(META.PERMISSIONS, p);
+
+/** At least one of the listed permissions is required. */
+export const RequireAnyPermission = (...p: Permission[]) => SetMetadata(META.ANY_PERMISSIONS, p);

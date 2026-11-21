@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { migrate } from '../src/db/migrate';
 import { seedPlatformData } from '../src/db/seed';
+import { seedMasterCatalog } from '../src/catalog/master-seed';
 
 const BASE = process.env.TEST_PG_BASE ?? 'postgres://postgres:postgres@localhost:5433';
 const DB = 'pos_test';
@@ -16,6 +17,7 @@ export default async function globalSetup() {
   await migrate(adminUrl);
   const p = new Pool({ connectionString: adminUrl, max: 1 });
   await seedPlatformData(p);
+  await seedMasterCatalog(p);
   await p.end();
 
   process.env.ADMIN_DATABASE_URL = adminUrl;

@@ -1,5 +1,6 @@
 import { migrate } from './migrate';
 import { seedPlatformData } from './seed';
+import { seedMasterCatalog } from '../catalog/master-seed';
 import { config } from '../common/config';
 import { Pool } from 'pg';
 
@@ -10,6 +11,7 @@ import { Pool } from 'pg';
   const pool = new Pool({ connectionString: url });
   await seedPlatformData(pool);
   console.log('Platform data seeded (features, plans).');
+  console.log(`Master catalog: ${await seedMasterCatalog(pool)} new products.`);
   // Optional first Super Admin: PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_PASSWORD
   if (process.env.PLATFORM_ADMIN_EMAIL && process.env.PLATFORM_ADMIN_PASSWORD) {
     const { hashSecret } = await import('../auth/password');
