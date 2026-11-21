@@ -202,7 +202,7 @@ export class AuditAndApprovalController {
   @Post('approvals')
   @HttpCode(200)
   override(@CurrentTenant() s: TenantSession, @Body() body: unknown) {
-    const b = parse(z.object({ action: z.string().min(1), entityId: z.string().optional(), approverUserId: z.string().uuid(), pin: z.string() }), body);
+    const b = parse(z.object({ action: z.string().min(1), entityId: z.string().optional(), approverUserId: z.string().uuid().optional(), approverEmail: z.string().email().optional(), pin: z.string() }).refine((v) => v.approverUserId || v.approverEmail, 'approverUserId or approverEmail is required'), body);
     return this.db.tenant(ctx(s), (tx) => this.approvals.requestOverride(tx, s, b));
   }
 }

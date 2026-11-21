@@ -147,4 +147,23 @@ describe('authentication', () => {
     expect((await t.http().post('/v1/auth/login').send({ email: shop.ownerEmail, password: PASSWORD })).status).toBe(401);
     expect((await t.http().post('/v1/auth/login').send({ email: shop.ownerEmail, password: 'NewPassw0rd!' })).status).toBe(200);
   });
+
+  it('select-terminal binds a signed-in user to a till; needs a role at that branch; tokens carry the terminal', async () => {
+    const shop = await provisionShop(t);
+    const owner = await login(t, shop.ownerEmail);
+    const term = await t.http().post('/v1/terminals').set(auth(owner)).send({ branchId: shop.defaultBranchId, name: 'T1', prefix: 'SEL-T1' }).expect(201);
+    const cashier = await createUser(t, owner, { roleId: shop.roleIds.cashier, branchId: shop.defaultBranchId });
+    const l = await t.http().post('/v1/auth/login').set('x-token-mode', 'body').send({ email: cashier.email, password: PASSWORD });
+    expect((await t.http().get('/v1/auth/me').set(auth(l.body.accessToken))).body.session.terminalId).toBeUndefined();
+    const sel = await t.http().post('/v1/auth/select-terminal').set(auth(l.body.accessToken)).set('x-token-mode', 'body').send({ terminalId: term.body.id });
+    expect(sel.status).toBe(200);
+    expect((await t.http().get('/v1/auth/me').set(auth(sel.body.accessToken))).body.session).toMatchObject({ terminalId: term.body.id, branchId: shop.defaultBranchId });
+    // a refresh keeps the terminal
+    const r = await t.http().post('/v1/auth/refresh').set('x-token-mode', 'body').send({ refreshToken: sel.body.refreshToken });
+    expect(r.body.session.terminalId).toBe(term.body.id);
+    // another shop's terminal is refused
+    const other = await provisionShop(t);
+    const ot = await t.http().post('/v1/terminals').set(auth(await login(t, other.ownerEmail))).send({ branchId: other.defaultBranchId, name: 'X', prefix: 'OTH-T1' }).expect(201);
+    expect((await t.http().post('/v1/auth/select-terminal').set(auth(l.body.accessToken)).send({ terminalId: ot.body.id })).status).toBe(403);
+  });
 });

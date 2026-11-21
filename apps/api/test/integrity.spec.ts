@@ -51,14 +51,18 @@ describe('database integrity and migrations', () => {
     it('a customer balance that no longer matches the credit entries', () =>
       corrupt(`UPDATE customer SET balance = balance + 5 WHERE shop_id='${c.shop.shopId}'`, `UPDATE customer SET balance = balance - 5 WHERE shop_id='${c.shop.shopId}'`, /customer balance/));
 
-    it('a sale whose total no longer matches its lines or payments', () =>
-      corrupt(`UPDATE sale SET total = total + 1 WHERE id = (SELECT id FROM sale WHERE shop_id='${c.shop.shopId}' LIMIT 1)`, `UPDATE sale SET total = total - 1 WHERE id = (SELECT id FROM sale WHERE shop_id='${c.shop.shopId}' ORDER BY total DESC LIMIT 0) OR false; UPDATE sale SET total = total - 1 WHERE id = (SELECT id FROM sale WHERE shop_id='${c.shop.shopId}' LIMIT 1)`, /sale total/));
+    it('a sale whose total no longer matches its lines or payments', async () => {
+      const id = (await pool.query(`SELECT id FROM sale WHERE shop_id=$1 ORDER BY created_at, id LIMIT 1`, [c.shop.shopId])).rows[0].id; // fixed row for corrupt and undo
+      await corrupt(`UPDATE sale SET total = total + 1 WHERE id='${id}'`, `UPDATE sale SET total = total - 1 WHERE id='${id}'`, /sale total/);
+    });
 
     it('a gap in a terminal\'s invoice numbers', () =>
       corrupt(`UPDATE invoice_sequence SET next = next + 1 WHERE shop_id='${c.shop.shopId}'`, `UPDATE invoice_sequence SET next = next - 1 WHERE shop_id='${c.shop.shopId}'`, /invoice numbers/));
 
-    it('layers or batches holding more than the stock balance', () =>
-      corrupt(`UPDATE cost_layer SET qty_remaining = qty_remaining + 1 WHERE id = (SELECT max(id) FROM cost_layer WHERE shop_id='${c.shop.shopId}' AND qty_remaining > 0)`, `UPDATE cost_layer SET qty_remaining = qty_remaining - 1 WHERE id = (SELECT max(id) FROM cost_layer WHERE shop_id='${c.shop.shopId}' AND qty_remaining > 0)`, /cost layers/));
+    it('layers or batches holding more than the stock balance', async () => {
+      const id = (await pool.query(`SELECT max(id) AS i FROM cost_layer WHERE shop_id=$1 AND qty_remaining > 0`, [c.shop.shopId])).rows[0].i;
+      await corrupt(`UPDATE cost_layer SET qty_remaining = qty_remaining + 1 WHERE id=${id}`, `UPDATE cost_layer SET qty_remaining = qty_remaining - 1 WHERE id=${id}`, /cost layers/);
+    });
   });
 
   describe('migrations', () => {

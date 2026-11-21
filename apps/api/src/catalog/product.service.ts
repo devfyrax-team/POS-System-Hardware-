@@ -167,12 +167,16 @@ export class ProductService {
     return p;
   }
 
-  async list(tx: Tx, shopId: string, f: { category?: string; needsReview?: boolean; status?: string; limit?: number; offset?: number } = {}) {
+  /** Product list with the retail price and the stock at one branch (or all branches when none is given). Never cost. */
+  async list(tx: Tx, shopId: string, f: { category?: string; needsReview?: boolean; status?: string; branchId?: string; limit?: number; offset?: number } = {}) {
     return (
       await tx.query(
-        `SELECT ${COLS} FROM product WHERE shop_id=$1 AND ($2::text IS NULL OR category=$2) AND ($3::boolean IS NULL OR needs_review=$3)
-           AND status = coalesce($4,'active') ORDER BY name LIMIT $5 OFFSET $6`,
-        [shopId, f.category ?? null, f.needsReview ?? null, f.status ?? null, Math.min(f.limit ?? 100, 500), f.offset ?? 0],
+        `SELECT ${COLS.split(',').map((c) => 'p.' + c.trim()).join(', ')},
+                (SELECT pp.price FROM product_price pp JOIN product_unit u ON u.id = pp.unit_id AND u.is_base WHERE pp.product_id = p.id AND pp.tier = 'retail') AS price,
+                coalesce((SELECT sum(sb.quantity) FROM stock_balance sb WHERE sb.product_id = p.id AND ($6::uuid IS NULL OR sb.branch_id = $6)), 0) AS stock
+         FROM product p WHERE p.shop_id=$1 AND ($2::text IS NULL OR p.category=$2) AND ($3::boolean IS NULL OR p.needs_review=$3)
+           AND p.status = coalesce($4,'active') ORDER BY p.name LIMIT $5 OFFSET $7`,
+        [shopId, f.category ?? null, f.needsReview ?? null, f.status ?? null, Math.min(f.limit ?? 100, 500), f.branchId ?? null, f.offset ?? 0],
       )
     ).rows;
   }

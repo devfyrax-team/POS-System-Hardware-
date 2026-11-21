@@ -9,6 +9,7 @@
     "integrity": "ts-node -r tsconfig-paths/register src/db/integrity-cli.ts",
     "worker": "ts-node -r tsconfig-paths/register src/worker.ts",
     "load": "ts-node -r tsconfig-paths/register scripts/load-test.ts",
+    "seed:demo": "ts-node -r tsconfig-paths/register scripts/seed-demo.ts",
     "test": "jest --runInBand"
   },
   "dependencies": {

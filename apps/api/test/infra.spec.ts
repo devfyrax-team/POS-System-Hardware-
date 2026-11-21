@@ -167,4 +167,19 @@ describe('supervisor override', () => {
     const log = (await t.http().get('/v1/audit-log?action=approval.granted').set(auth(owner))).body;
     expect(log[0]).toMatchObject({ actor_id: cashier.id, approver_id: mgr.id, terminal_id: term.id });
   });
+
+  it('the supervisor can be identified by email at the till', async () => {
+    const shop = await provisionShop(t);
+    const owner = await login(t, shop.ownerEmail);
+    const term = (await t.http().post('/v1/terminals').set(auth(owner)).send({ branchId: shop.defaultBranchId, name: 'T', prefix: 'EM-T1' })).body;
+    const mgr = await createUser(t, owner, { roleId: shop.roleIds.manager, branchId: shop.defaultBranchId });
+    const cashier = await createUser(t, owner, { roleId: shop.roleIds.cashier, branchId: shop.defaultBranchId });
+    await t.http().put(`/v1/users/${mgr.id}/pin`).set(auth(owner)).send({ pin: '5555' }).expect(204);
+    const tok = await login(t, cashier.email, undefined, term.id);
+    const ok = await t.http().post('/v1/approvals').set(auth(tok)).send({ action: 'discount.large', approverEmail: mgr.email.toUpperCase(), pin: '5555' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.approverId).toBe(mgr.id);
+    expect((await t.http().post('/v1/approvals').set(auth(tok)).send({ action: 'x', approverEmail: mgr.email, pin: '0000' })).status).toBe(403);
+    expect((await t.http().post('/v1/approvals').set(auth(tok)).send({ action: 'x', pin: '5555' })).status).toBe(400);
+  });
 });

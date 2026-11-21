@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { E } from '../common/errors';
+import { scopeBranch } from '../common/branch-scope';
 import { CurrentTenant, TenantSession } from '../common/session';
 import { decimalStr, nonNegativeDecimal, parse, z } from '../common/validate';
 import { Db } from '../db/db';
@@ -91,7 +92,7 @@ export class ProductsController {
     return this.db.tenant(ctx(s), (tx) =>
       this.products.list(tx, s.shopId, {
         category: q.category, needsReview: q.needsReview === undefined ? undefined : q.needsReview === 'true',
-        status: q.status, limit: q.limit ? Number(q.limit) : undefined, offset: q.offset ? Number(q.offset) : undefined,
+        status: q.status, branchId: scopeBranch(s, q.branchId), limit: q.limit ? Number(q.limit) : undefined, offset: q.offset ? Number(q.offset) : undefined,
       }),
     );
   }

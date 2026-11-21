@@ -31,14 +31,18 @@ export class ApprovalService {
     private readonly access: AccessService,
   ) {}
 
-  async requestOverride(tx: Tx, s: TenantSession, input: { action: string; entityId?: string; approverUserId: string; pin: string }) {
-    this.limiter.check(`${s.shopId}:${input.approverUserId}`);
-    const u = (await tx.query(`SELECT id, pin_hash, status FROM users WHERE shop_id=$1 AND id=$2`, [s.shopId, input.approverUserId])).rows[0];
+  async requestOverride(tx: Tx, s: TenantSession, input: { action: string; entityId?: string; approverUserId?: string; approverEmail?: string; pin: string }) {
+    // the supervisor may be named by id or, at the till, by email
+    const who = input.approverUserId ?? `email:${(input.approverEmail ?? '').toLowerCase()}`;
+    this.limiter.check(`${s.shopId}:${who}`);
+    const u = (
+      await tx.query(`SELECT id, pin_hash, status FROM users WHERE shop_id=$1 AND (($2::uuid IS NOT NULL AND id=$2) OR ($2::uuid IS NULL AND lower(email)=lower($3)))`, [s.shopId, input.approverUserId ?? null, input.approverEmail ?? ''])
+    ).rows[0];
     if (!u || u.status !== 'active' || !u.pin_hash || !(await verifySecret(u.pin_hash, input.pin))) throw E.forbidden('Invalid approver or PIN');
     const { features } = await this.features.resolve(tx, s.shopId);
     const acc = await this.access.load(tx, u.id, s.branchId, features);
     if (!acc.permissions.has('approval.grant')) throw E.forbidden('This user cannot approve restricted actions');
-    this.limiter.reset(`${s.shopId}:${input.approverUserId}`);
+    this.limiter.reset(`${s.shopId}:${who}`);
 
     const claims: Omit<ApprovalClaims, 'exp'> = {
       typ: 'approval', shop: s.shopId, action: input.action, entityId: input.entityId,

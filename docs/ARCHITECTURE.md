@@ -449,7 +449,7 @@ All eight roadmap phases are implemented in `apps/api` with tests; see the READM
 | Price-change gain report | listed | Not built. Profit, profit by item/category/cashier/branch, replacement-cost margin, below-cost and missing-cost flags are built. |
 | Support access to shops | consented, audited | Not built. |
 | Offline | removed (D1) | The tills need the network; retries are safe because every sale carries an idempotency key. |
-| Frontend | React PWA | Not built yet. |
+| Frontend | React PWA | React + Vite web app in `apps/web` (till, back office, platform admin). It is a normal single-page app, not an installable offline PWA, because offline was removed (D1). |
 
 Operational additions beyond the design: database integrity checker (`npm run integrity`), backup and restore-rehearsal scripts,
 load test (`npm run load`), `/health/ready`, Prometheus-style metrics, OpenAPI at `/docs`. See `docs/RUNBOOK.md` and `docs/SECURITY.md`.

@@ -131,6 +131,31 @@ export class AuthService {
     if (row) await this.db.query(`SELECT auth_revoke_family($1)`, [row.family_id]);
   }
 
+  /**
+   * A signed-in user starts working at a till: binds this session to a registered terminal (and its branch).
+   * The user must hold a role at that branch. Tokens are re-issued so the terminal survives a refresh.
+   */
+  async selectTerminal(s: { shopId: string; userId: string }, input: { terminalId: string; oldRefreshToken?: string }): Promise<AuthResult> {
+    return this.db.tenant({ shopId: s.shopId, userId: s.userId }, async (tx) => {
+      const u = (await tx.query(`SELECT id, name, status, must_change_password FROM users WHERE shop_id=$1 AND id=$2`, [s.shopId, s.userId])).rows[0];
+      if (!u || u.status !== 'active') throw E.unauthenticated('Account is inactive');
+      const branchId = await this.bindBranch(tx, s.shopId, s.userId, input.terminalId);
+      if (input.oldRefreshToken) {
+        await tx.query(`UPDATE refresh_token SET revoked_at=now() WHERE shop_id=$1 AND user_id=$2 AND token_hash=$3 AND revoked_at IS NULL`, [s.shopId, s.userId, TokenService.hashOpaque(input.oldRefreshToken)]);
+      }
+      const refresh = await this.newRefresh(tx, { shopId: s.shopId, userId: s.userId, terminalId: input.terminalId, branchId });
+      await this.audit.record(tx, { shopId: s.shopId, actorId: s.userId, action: 'auth.select_terminal', terminalId: input.terminalId });
+      return {
+        accessToken: this.accessToken({ userId: s.userId, shopId: s.shopId, branchId, terminalId: input.terminalId }),
+        refreshToken: refresh,
+        expiresIn: config().accessTtlSec,
+        user: { id: u.id, name: u.name },
+        session: { shopId: s.shopId, branchId, terminalId: input.terminalId },
+        mustChangePassword: u.must_change_password,
+      };
+    });
+  }
+
   /** Fast cashier switch on a registered terminal. Requires an existing terminal session. */
   async switchUserByPin(s: { shopId: string; terminalId?: string }, input: { userId: string; pin: string }): Promise<AuthResult> {
     if (!s.terminalId) throw E.forbidden('PIN switch is only available on a registered terminal');

@@ -2,11 +2,15 @@
   "name": "pos-system",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "build": "npm run build -w apps/api",
-    "test": "npm test -w packages/money && npm test -w apps/api",
+    "build": "npm run build -w apps/api && npm run build -w apps/web",
+    "test": "npm test -w packages/money && npm test -w apps/api && npm test -w apps/web",
     "lint:money": "node infra/check-no-float-money.js",
+    "dev:web": "npm run dev -w apps/web",
     "db:up": "docker compose up -d postgres",
     "db:migrate": "npm run migrate -w apps/api"
   }

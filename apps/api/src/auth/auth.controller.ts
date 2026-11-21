@@ -66,6 +66,15 @@ export class AuthController {
     res.clearCookie(REFRESH_COOKIE, { path: '/v1/auth' });
   }
 
+  @Post('select-terminal')
+  @HttpCode(200)
+  async selectTerminal(@CurrentTenant() s: TenantSession, @Body() body: unknown, @Req() req: any, @Res({ passthrough: true }) res: any) {
+    const b = parse(z.object({ terminalId: z.string().uuid() }), body);
+    const r = await this.auth.selectTerminal(s, { terminalId: b.terminalId, oldRefreshToken: readCookie(req.headers.cookie, REFRESH_COOKIE) });
+    setCookies(res, r);
+    return present(req, r);
+  }
+
   @Post('pin-switch')
   @HttpCode(200)
   async pinSwitch(@CurrentTenant() s: TenantSession, @Body() body: unknown, @Req() req: any, @Res({ passthrough: true }) res: any) {
