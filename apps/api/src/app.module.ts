@@ -13,9 +13,10 @@ import { CustomersModule } from './customers/customers.module';
 import { PurchasingModule } from './purchasing/purchasing.module';
 import { ReportingModule } from './reporting/reporting.module';
 import { ExpiryModule } from './inventory/expiry.module';
+import { PaintModule } from './paint/paint.module';
 
 @Module({
-  imports: [CoreModule, IdentityModule, CatalogModule, InventoryModule, ImportModule, SalesModule, CustomersModule, PurchasingModule, ReportingModule, ExpiryModule],
+  imports: [CoreModule, IdentityModule, CatalogModule, InventoryModule, ImportModule, SalesModule, CustomersModule, PurchasingModule, ReportingModule, ExpiryModule, PaintModule],
   controllers: [HealthController],
   providers: [
     // Guard chain, in order: Auth -> Tenant/Subscription -> Feature -> Permission.

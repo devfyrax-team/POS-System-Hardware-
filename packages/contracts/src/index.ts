@@ -32,6 +32,7 @@ export const PERMISSIONS = [
   'approval.grant',
   'transfer.manage',
   'import.manage',
+  'tint.mix',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -61,6 +62,7 @@ export const PERMISSION_FEATURE: Partial<Record<Permission, FeatureKey>> = {
   'transfer.manage': 'branch_transfers',
   'import.manage': 'bulk_import',
   'credit.manage': 'credit_sales',
+  'tint.mix': 'colour_tinting',
 };
 
 /** Features restricted to certain shop types (others are always allowed). */
@@ -86,13 +88,14 @@ const ALL = [...PERMISSIONS] as Permission[];
 export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
   owner: ALL,
   manager: ALL.filter((p) => !['role.manage', 'branch.manage', 'shop.settings'].includes(p)),
-  cashier: ['sale.create', 'payment.take', 'customer.manage'],
+  cashier: ['sale.create', 'payment.take', 'customer.manage', 'tint.mix'],
   storekeeper: [
     'stock.receive',
     'stock.count',
     'stock.adjust_request',
     'lowstock.receive_alerts',
     'catalog.manage',
+    'tint.mix',
   ],
 };
 
@@ -128,4 +131,6 @@ export type MovementType =
   | 'transfer_in'
   | 'damaged'
   | 'expired'
-  | 'stocktake';
+  | 'stocktake'
+  | 'tint_in'
+  | 'tint_out';
