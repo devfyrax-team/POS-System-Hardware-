@@ -64,6 +64,10 @@ export class CostingService {
         [p.shopId, p.branchId, p.productId, p.batchId ?? null, p.qty, cost.toString(), estimated, p.sourceType, p.sourceId ?? null, p.supplierId ?? null],
       )
     ).rows[0];
+    if (!estimated && (p.sourceType === 'opening' || p.sourceType === 'purchase')) {
+      // the latest real purchase cost drives replacement-cost margin and later estimates
+      await tx.query(`UPDATE product SET last_cost=$3 WHERE shop_id=$1 AND id=$2`, [p.shopId, p.productId, cost.toString()]);
+    }
     return { layerId: Number(r.id), unitCost: cost.toString(), estimated };
   }
 

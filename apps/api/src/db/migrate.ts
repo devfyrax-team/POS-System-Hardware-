@@ -14,6 +14,9 @@ export const INSERT_ONLY_TABLES = [
   'sales_return',
   'sales_return_line',
   'purchase_price_history',
+  'supplier_ledger',
+  'purchase_return',
+  'purchase_return_line',
   'price_history',
 ];
 
