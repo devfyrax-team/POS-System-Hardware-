@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Header, HttpCode, Module, OnModuleInit, Param, Post, Put } from '@nestjs/common';
+import { assertBranchAccess, scopeBranch } from '../common/branch-scope';
 import { CatalogModule } from '../catalog/catalog.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { CurrentTenant, TenantSession } from '../common/session';
@@ -19,6 +20,7 @@ export class ImportController {
   @Post()
   upload(@CurrentTenant() s: TenantSession, @Body() body: unknown) {
     const b = parse(z.object({ branchId: z.string().uuid().optional(), rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).min(1) }), body);
+    if (b.branchId) assertBranchAccess(s, b.branchId);
     return this.db.tenant(ctx(s), (tx) => this.imports.upload(tx, s, b));
   }
 

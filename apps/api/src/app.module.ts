@@ -14,9 +14,11 @@ import { PurchasingModule } from './purchasing/purchasing.module';
 import { ReportingModule } from './reporting/reporting.module';
 import { ExpiryModule } from './inventory/expiry.module';
 import { PaintModule } from './paint/paint.module';
+import { TransfersModule } from './transfers/transfers.module';
+import { BillingModule } from './platform/billing.module';
 
 @Module({
-  imports: [CoreModule, IdentityModule, CatalogModule, InventoryModule, ImportModule, SalesModule, CustomersModule, PurchasingModule, ReportingModule, ExpiryModule, PaintModule],
+  imports: [CoreModule, IdentityModule, CatalogModule, InventoryModule, ImportModule, SalesModule, CustomersModule, PurchasingModule, ReportingModule, ExpiryModule, PaintModule, TransfersModule, BillingModule],
   controllers: [HealthController],
   providers: [
     // Guard chain, in order: Auth -> Tenant/Subscription -> Feature -> Permission.

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Injectable, Module, OnModuleInit, Post, Query } from '@nestjs/common';
+import { assertBranchAccess, scopeBranch } from '../common/branch-scope';
 import { D } from '@pos/money';
 import { SalesModule } from '../sales/sales.module';
 import { InventoryModule } from './inventory.module';
@@ -154,19 +155,19 @@ export class ExpiryController {
   @Get('batches')
   @RequireAnyPermission('stock.count', 'stock.receive', 'report.view', 'sale.create')
   list(@CurrentTenant() s: TenantSession, @Query() q: any) {
-    return this.db.tenant(ctx(s), (tx) => this.batches.list(tx, s.shopId, { branchId: q.branchId ?? s.branchId, productId: q.productId, includeEmpty: q.includeEmpty === 'true' }));
+    return this.db.tenant(ctx(s), (tx) => this.batches.list(tx, s.shopId, { branchId: scopeBranch(s, q.branchId), productId: q.productId, includeEmpty: q.includeEmpty === 'true' }));
   }
 
   @Get('reports/near-expiry')
   @RequireAnyPermission('stock.count', 'report.view')
   near(@CurrentTenant() s: TenantSession, @Query() q: any) {
-    return this.db.tenant(ctx(s), (tx) => this.expiry.nearExpiry(tx, s.shopId, { branchId: q.branchId, withinDays: q.withinDays ? Number(q.withinDays) : undefined }));
+    return this.db.tenant(ctx(s), (tx) => this.expiry.nearExpiry(tx, s.shopId, { branchId: scopeBranch(s, q.branchId), withinDays: q.withinDays ? Number(q.withinDays) : undefined }));
   }
 
   @Get('reports/expired')
   @RequireAnyPermission('stock.count', 'report.view')
   expired(@CurrentTenant() s: TenantSession, @Query() q: any) {
-    return this.db.tenant(ctx(s), (tx) => this.expiry.nearExpiry(tx, s.shopId, { branchId: q.branchId, expired: true }));
+    return this.db.tenant(ctx(s), (tx) => this.expiry.nearExpiry(tx, s.shopId, { branchId: scopeBranch(s, q.branchId), expired: true }));
   }
 
   @Get('reports/supplier-returns')

@@ -50,7 +50,7 @@ export class AuthGuard implements CanActivate {
 /** Guard 2: tenant + subscription. Shop must be active; a restricted/cancelled subscription is read-only. */
 @Injectable()
 export class TenantContextGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector, private readonly db: Db, private readonly features: FeatureService) {}
+  constructor(private readonly reflector: Reflector, private readonly db: Db, private readonly features: FeatureService, private readonly access: AccessService) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest();
@@ -59,8 +59,16 @@ export class TenantContextGuard implements CanActivate {
     const targets = [ctx.getHandler(), ctx.getClass()];
     const allowRestricted = this.reflector.getAllAndOverride<boolean>(META.ALLOW_RESTRICTED, targets);
 
-    const r: Resolved = await this.db.tenant({ shopId: s.shopId, userId: s.userId }, (tx) => this.features.resolve(tx, s.shopId));
+    const { r, acc } = await this.db.tenant({ shopId: s.shopId, userId: s.userId }, async (tx) => {
+      const r: Resolved = await this.features.resolve(tx, s.shopId);
+      const u = (await tx.query(`SELECT status FROM users WHERE shop_id=$1 AND id=$2`, [s.shopId, s.userId])).rows[0];
+      if (!u || u.status !== 'active') throw E.unauthenticated('Account is inactive');
+      return { r, acc: await this.access.load(tx, s.userId, s.branchId, r.features) };
+    });
     req.resolved = r;
+    s.permissions = acc.permissions;
+    s.allBranches = acc.allBranches;
+    s.branchIds = acc.branchIds;
     s.features = r.features;
     s.limits = r.limits;
 
@@ -91,24 +99,17 @@ export class FeatureGuard implements CanActivate {
 /** Guard 4: @RequirePermission. Permissions are the union of the user's roles at the session branch, minus disabled features. */
 @Injectable()
 export class PermissionGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector, private readonly db: Db, private readonly access: AccessService) {}
+  constructor(private readonly reflector: Reflector) {}
 
-  async canActivate(ctx: ExecutionContext): Promise<boolean> {
+  canActivate(ctx: ExecutionContext): boolean {
     const targets = [ctx.getHandler(), ctx.getClass()];
     const need = this.reflector.getAllAndOverride<Permission[]>(META.PERMISSIONS, targets);
     const any = this.reflector.getAllAndOverride<Permission[]>(META.ANY_PERMISSIONS, targets);
     const s: TenantSession | undefined = ctx.switchToHttp().getRequest().session;
     if ((!need?.length && !any?.length) || !s || s.kind !== 'tenant') return true;
-    const acc = await this.db.tenant({ shopId: s.shopId, userId: s.userId }, async (tx) => {
-      const u = (await tx.query(`SELECT status FROM users WHERE shop_id=$1 AND id=$2`, [s.shopId, s.userId])).rows[0];
-      if (!u || u.status !== 'active') throw E.unauthenticated('Account is inactive');
-      return this.access.load(tx, s.userId, s.branchId, s.features ?? new Set());
-    });
-    s.permissions = acc.permissions;
-    s.allBranches = acc.allBranches;
-    s.branchIds = acc.branchIds;
-    for (const p of need ?? []) if (!acc.permissions.has(p)) throw E.forbidden(`Missing permission: ${p}`);
-    if (any?.length && !any.some((p) => acc.permissions.has(p))) throw E.forbidden(`Requires one of: ${any.join(', ')}`);
+    const perms = s.permissions ?? new Set<Permission>();
+    for (const p of need ?? []) if (!perms.has(p)) throw E.forbidden(`Missing permission: ${p}`);
+    if (any?.length && !any.some((p) => perms.has(p))) throw E.forbidden(`Requires one of: ${any.join(', ')}`);
     return true;
   }
 }

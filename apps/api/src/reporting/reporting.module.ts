@@ -1,4 +1,5 @@
 import { Controller, Get, Module, Param, Query } from '@nestjs/common';
+import { assertBranchAccess, scopeBranch } from '../common/branch-scope';
 import { CustomersModule } from '../customers/customers.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { CurrentTenant, TenantSession } from '../common/session';
@@ -17,7 +18,7 @@ export class ReportsController {
   @Get('profit')
   @RequirePermission('profit.view')
   profit(@CurrentTenant() s: TenantSession, @Query() q: any) {
-    return this.db.tenant(ctx(s), (tx) => this.reports.profit(tx, s.shopId, { branchId: q.branchId, from: q.from, to: q.to }));
+    return this.db.tenant(ctx(s), (tx) => this.reports.profit(tx, s.shopId, { branchId: scopeBranch(s, q.branchId), from: q.from, to: q.to }));
   }
 
   @Get('profit/by/:by')
@@ -25,7 +26,13 @@ export class ReportsController {
   profitBy(@CurrentTenant() s: TenantSession, @Param('by') by: string, @Query() q: any) {
     const key = by as 'item' | 'category' | 'cashier' | 'branch';
     if (!['item', 'category', 'cashier', 'branch'].includes(key)) throw E.validation('by must be item, category, cashier or branch');
-    return this.db.tenant(ctx(s), (tx) => this.reports.profitBy(tx, s.shopId, key, { branchId: q.branchId, from: q.from, to: q.to }));
+    return this.db.tenant(ctx(s), (tx) => this.reports.profitBy(tx, s.shopId, key, { branchId: scopeBranch(s, q.branchId), from: q.from, to: q.to }));
+  }
+
+  @Get('branches')
+  @RequirePermission('report.view')
+  branches(@CurrentTenant() s: TenantSession, @Query() q: any) {
+    return this.db.tenant(ctx(s), (tx) => this.reports.branches(tx, s.shopId, { from: q.from, to: q.to }, s.permissions!.has('cost.view')));
   }
 
   @Get('cost-flags')
@@ -38,7 +45,7 @@ export class ReportsController {
   @Get('dashboard')
   @RequireAnyPermission('report.view', 'profit.view')
   dashboard(@CurrentTenant() s: TenantSession, @Query('branchId') branchId?: string) {
-    return this.db.tenant(ctx(s), (tx) => this.reports.dashboard(tx, s.shopId, { branchId: branchId ?? s.branchId, includeProfit: s.permissions!.has('profit.view') }));
+    return this.db.tenant(ctx(s), (tx) => this.reports.dashboard(tx, s.shopId, { branchId: scopeBranch(s, branchId), includeProfit: s.permissions!.has('profit.view') }));
   }
 }
 

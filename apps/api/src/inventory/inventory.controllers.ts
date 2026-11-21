@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import { assertBranchAccess, scopeBranch } from '../common/branch-scope';
 import { CurrentTenant, TenantSession } from '../common/session';
 import { decimalStr, parse, z } from '../common/validate';
 import { Db } from '../db/db';
@@ -32,7 +33,7 @@ export class InventoryController {
   @Get('stock')
   balances(@CurrentTenant() s: TenantSession, @Query() q: any) {
     return this.db.tenant(ctx(s), (tx) =>
-      this.stock.balances(tx, s.shopId, { branchId: q.branchId ?? s.branchId, productId: q.productId, limit: q.limit ? Number(q.limit) : undefined, offset: q.offset ? Number(q.offset) : undefined }),
+      this.stock.balances(tx, s.shopId, { branchId: scopeBranch(s, q.branchId), productId: q.productId, limit: q.limit ? Number(q.limit) : undefined, offset: q.offset ? Number(q.offset) : undefined }),
     );
   }
 
@@ -40,7 +41,7 @@ export class InventoryController {
   @RequireAnyPermission('stock.count', 'stock.receive', 'report.view')
   movements(@CurrentTenant() s: TenantSession, @Query() q: any) {
     return this.db.tenant(ctx(s), (tx) =>
-      this.stock.movements(tx, s.shopId, { branchId: q.branchId ?? s.branchId, productId: q.productId, limit: q.limit ? Number(q.limit) : undefined, beforeId: q.beforeId ? Number(q.beforeId) : undefined }),
+      this.stock.movements(tx, s.shopId, { branchId: scopeBranch(s, q.branchId), productId: q.productId, limit: q.limit ? Number(q.limit) : undefined, beforeId: q.beforeId ? Number(q.beforeId) : undefined }),
     );
   }
 
@@ -48,19 +49,20 @@ export class InventoryController {
   @RequirePermission('stock.receive')
   opening(@CurrentTenant() s: TenantSession, @Body() body: unknown) {
     const b = parse(z.object({ branchId: z.string().uuid(), lines: z.array(z.object({ productId: z.string().uuid(), qtyBase: decimalStr, unitCost: decimalStr.optional() })).min(1).max(1000) }), body);
+    assertBranchAccess(s, b.branchId);
     return this.db.tenant(ctx(s), (tx) => this.adjustments.postOpening(tx, s, b));
   }
 
   @Get('stock/low')
   @RequirePermission('lowstock.receive_alerts')
   lowList(@CurrentTenant() s: TenantSession, @Query('branchId') branchId?: string) {
-    return this.db.tenant(ctx(s), (tx) => this.low.list(tx, s.shopId, branchId ?? s.branchId));
+    return this.db.tenant(ctx(s), (tx) => this.low.list(tx, s.shopId, scopeBranch(s, branchId)));
   }
 
   @Get('stock/valuation')
   @RequirePermission('cost.view')
   valuation(@CurrentTenant() s: TenantSession, @Query('branchId') branchId?: string) {
-    return this.db.tenant(ctx(s), (tx) => this.costing.valuation(tx, s.shopId, branchId));
+    return this.db.tenant(ctx(s), (tx) => this.costing.valuation(tx, s.shopId, scopeBranch(s, branchId)));
   }
 
   /** Cost of one product: layers, last known cost, and whether any cost is only an estimate. cost.view only. */
@@ -85,7 +87,7 @@ export class InventoryController {
   @HttpCode(200)
   @RequirePermission('stock.adjust')
   reconcile(@CurrentTenant() s: TenantSession) {
-    return this.db.tenant(ctx(s), (tx) => this.recon.run(tx, s.shopId));
+    return this.db.tenant(ctx(s), (tx) => this.recon.run(tx, s.shopId, scopeBranch(s)));
   }
 
   @Get('stock/discrepancies')
@@ -105,6 +107,7 @@ export class InventoryController {
       }),
       body,
     );
+    assertBranchAccess(s, b.branchId);
     return this.db.tenant(ctx(s), (tx) => this.adjustments.request(tx, s, b));
   }
 
@@ -133,6 +136,7 @@ export class InventoryController {
   @RequirePermission('stock.count')
   openCount(@CurrentTenant() s: TenantSession, @Body() body: unknown) {
     const b = parse(z.object({ branchId: z.string().uuid(), scope: z.string().optional(), category: z.string().optional(), productIds: z.array(z.string().uuid()).optional() }), body);
+    assertBranchAccess(s, b.branchId);
     return this.db.tenant(ctx(s), (tx) => this.stocktakes.open(tx, s, b));
   }
 

@@ -122,4 +122,22 @@ export class ReportsService {
     if (opts.includeProfit) Object.assign(out.today, { cogs: today.cogs, estimatedGrossProfit: today.estimatedGrossProfit, marginPct: today.marginPct });
     return out;
   }
+
+  /** Branch comparison: bills and sales per branch; stock value at cost only for roles that may see cost. */
+  async branches(tx: Tx, shopId: string, p: Period, includeCost: boolean) {
+    const rows = (
+      await tx.query(
+        `SELECT b.id, b.name,
+           (SELECT count(*)::int FROM sale s WHERE s.branch_id=b.id AND ($2::timestamptz IS NULL OR s.created_at >= $2) AND ($3::timestamptz IS NULL OR s.created_at < $3)
+              AND NOT EXISTS (SELECT 1 FROM sale_void v WHERE v.sale_id=s.id)) AS bills,
+           (SELECT coalesce(sum(s.total),0) FROM sale s WHERE s.branch_id=b.id AND ($2::timestamptz IS NULL OR s.created_at >= $2) AND ($3::timestamptz IS NULL OR s.created_at < $3)
+              AND NOT EXISTS (SELECT 1 FROM sale_void v WHERE v.sale_id=s.id)) AS sales,
+           (SELECT coalesce(sum(quantity),0) FROM stock_balance sb WHERE sb.branch_id=b.id) AS units_in_stock,
+           (SELECT coalesce(sum(l.qty_remaining * l.unit_cost),0) FROM cost_layer l WHERE l.branch_id=b.id AND l.qty_remaining > 0) AS stock_value
+         FROM branch b WHERE b.shop_id=$1 AND b.status='active' ORDER BY b.name`,
+        [shopId, p.from ?? null, p.to ?? null],
+      )
+    ).rows;
+    return rows.map((r) => ({ branchId: r.id, branch: r.name, bills: r.bills, sales: D(r.sales).toString(), unitsInStock: D(r.units_in_stock).toString(), ...(includeCost ? { stockValue: D(r.stock_value).toDecimalPlaces(2).toString() } : {}) }));
+  }
 }

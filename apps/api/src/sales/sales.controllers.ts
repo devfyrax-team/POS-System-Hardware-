@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Headers, HttpCode, Param, Post, Query, Res } from '@nestjs/common';
+import { assertBranchAccess, scopeBranch } from '../common/branch-scope';
 import { E } from '../common/errors';
 import { CurrentTenant, TenantSession } from '../common/session';
 import { parse, z, decimalStr, positiveDecimal } from '../common/validate';
@@ -42,7 +43,7 @@ export class SalesController {
     const wide = s.permissions!.has('report.view');
     return this.db.tenant(ctx(s), (tx) =>
       this.queries.summary(tx, s.shopId, {
-        branchId: q.branchId ?? s.branchId, terminalId: q.terminalId, cashierId: wide ? q.cashierId : s.userId, from: q.from, to: q.to,
+        branchId: scopeBranch(s, q.branchId), terminalId: q.terminalId, cashierId: wide ? q.cashierId : s.userId, from: q.from, to: q.to,
       }),
     );
   }
@@ -53,7 +54,7 @@ export class SalesController {
     const wide = s.permissions!.has('report.view');
     return this.db.tenant(ctx(s), (tx) =>
       this.queries.list(tx, s.shopId, {
-        branchId: q.branchId ?? s.branchId, cashierId: wide ? q.cashierId : s.userId, terminalId: q.terminalId, from: q.from, to: q.to,
+        branchId: scopeBranch(s, q.branchId), cashierId: wide ? q.cashierId : s.userId, terminalId: q.terminalId, from: q.from, to: q.to,
         invoiceNo: q.invoiceNo, limit: q.limit ? Number(q.limit) : undefined, beforeCreatedAt: q.before,
       }),
     );
